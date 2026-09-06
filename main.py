@@ -45,6 +45,9 @@ async def main():
     
     except LLMRateLimitError as error:
         print(f"\nRate limit / quota error: {error}")
+    
+    except LLMAuthenticationError as error:
+        print(f"\nAuthentication error: {error}")
 
     except LLMConnectionError as error:
         print(f"\nConnection error: {error}")
@@ -52,7 +55,7 @@ async def main():
     print("\n--- STREAMING OPENAI ---")
 
     try:
-        async for chunk in manager.stream(provider="openai", messages=messages, config=openai_config):
+        async for chunk in manager.stream(provider=provider, messages=messages, config=openai_config):
             print(chunk, end="", flush=True)
 
         print()

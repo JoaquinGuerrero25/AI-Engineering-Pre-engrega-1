@@ -1,13 +1,15 @@
 import pytest
 
-from openai import APIConnectionError, RateLimitError
+from openai import APIConnectionError, RateLimitError, AuthenticationError
+
+from anthropic import AuthenticationError as AnthropicAuthenticationError
 from anthropic import RateLimitError as AnthropicRateLimitError
 from anthropic import APIConnectionError as AnthropicAPIConnectionError
 
 from app.openai_client import OpenAIClient
 from app.schemas import ChatMessage, ModelConfig
 from app.anthropic_client import AnthropicClient
-from app.exceptions import LLMConnectionError, LLMRateLimitError
+from app.exceptions import LLMConnectionError, LLMRateLimitError, LLMAuthenticationError
 
 class FakeOpenAIResponse:
 
@@ -322,6 +324,79 @@ async def test_anthropic_generate_handles_connection_error():
     )
 
     with pytest.raises(LLMConnectionError):
+        await client.generate(
+            messages=messages,
+            config=config,
+        )
+        
+@pytest.mark.asyncio
+async def test_openai_authentication_error():
+    class FakeAuthenticationError(AuthenticationError):
+        def __init__(self):
+            pass
+
+    class FakeCompletions:
+        async def create(self, **kwargs):
+            raise FakeAuthenticationError()
+
+    class FakeChat:
+        completions = FakeCompletions()
+
+    class FakeOpenAIClient:
+        chat = FakeChat()
+
+    client = OpenAIClient("fake-api-key")
+    client.client = FakeOpenAIClient()
+
+    messages = [
+        ChatMessage(
+            role="user",
+            content="¿Qué es la entropía?",
+        )
+    ]
+
+    config = ModelConfig(
+        model="fake-model",
+        temperature=0.7,
+        max_tokens=500,
+    )
+
+    with pytest.raises(LLMAuthenticationError):
+        await client.generate(
+            messages=messages,
+            config=config,
+        )
+        
+@pytest.mark.asyncio
+async def test_anthropic_authentication_error():
+    class FakeAuthenticationError(AnthropicAuthenticationError):
+        def __init__(self):
+            pass
+
+    class FakeMessages:
+        async def create(self, **kwargs):
+            raise FakeAuthenticationError()
+
+    class FakeAnthropicClient:
+        messages = FakeMessages()
+
+    client = AnthropicClient("fake-api-key")
+    client.client = FakeAnthropicClient()
+
+    messages = [
+        ChatMessage(
+            role="user",
+            content="¿Qué es la entropía?",
+        )
+    ]
+
+    config = ModelConfig(
+        model="fake-model",
+        temperature=0.7,
+        max_tokens=500,
+    )
+
+    with pytest.raises(LLMAuthenticationError):
         await client.generate(
             messages=messages,
             config=config,

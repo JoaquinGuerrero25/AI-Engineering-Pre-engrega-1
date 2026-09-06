@@ -6,3 +6,6 @@ class LLMRateLimitError(LLMClientError):
 
 class LLMConnectionError(LLMClientError):
     """Raised when there is a connection problem with the provider."""
+    
+class LLMAuthenticationError(LLMClientError):
+    """Raised when the provider credentials are invalid."""

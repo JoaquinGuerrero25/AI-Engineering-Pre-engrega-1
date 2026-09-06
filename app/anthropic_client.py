@@ -1,7 +1,7 @@
 from collections.abc import AsyncIterator
-from anthropic import AsyncAnthropic, APIConnectionError, RateLimitError
+from anthropic import AsyncAnthropic, APIConnectionError, RateLimitError, AuthenticationError
 
-from .exceptions import LLMConnectionError, LLMRateLimitError
+from .exceptions import LLMConnectionError, LLMRateLimitError, LLMAuthenticationError
 from .base import BaseLLMClient
 from .schemas import ChatMessage, ModelConfig, ModelResponse
 
@@ -38,6 +38,9 @@ class AnthropicClient(BaseLLMClient):
         
         except APIConnectionError as error:
             raise LLMConnectionError("Could not connect to Anthropic.") from error
+        
+        except AuthenticationError as error:
+            raise LLMAuthenticationError("Anthropic authentication failed. Check the API key.") from error
     
     async def stream(self, messages: list[ChatMessage], config: ModelConfig) -> AsyncIterator[str]:
         system_message = [message.content for message in messages if message.role == "system"]
@@ -63,6 +66,9 @@ class AnthropicClient(BaseLLMClient):
         
         except APIConnectionError as error:
             raise LLMConnectionError("Could not connect to Anthropic.") from error
+        
+        except AuthenticationError as error:
+            raise LLMAuthenticationError("Anthropic authentication failed. Check the API key.") from error
         
         
         

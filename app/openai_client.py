@@ -1,8 +1,8 @@
-from openai import (APIConnectionError, AsyncOpenAI, RateLimitError)
+from openai import (APIConnectionError, AsyncOpenAI, RateLimitError, AuthenticationError)
 from collections.abc import AsyncIterator
 
 from .base import BaseLLMClient
-from .exceptions import LLMConnectionError, LLMRateLimitError
+from .exceptions import LLMConnectionError, LLMRateLimitError, LLMAuthenticationError
 from .schemas import ChatMessage, ModelConfig, ModelResponse
 
 class OpenAIClient(BaseLLMClient):
@@ -29,6 +29,9 @@ class OpenAIClient(BaseLLMClient):
         
         except APIConnectionError as error:
             raise LLMConnectionError("Could not connect to OpenAI.") from error
+        
+        except AuthenticationError as error:
+            raise LLMAuthenticationError("OpenAI authentication failed. Check the API key.") from error
     
     async def stream(self, messages: list[ChatMessage], config: ModelConfig) -> AsyncIterator[str]:
         try:
@@ -51,3 +54,6 @@ class OpenAIClient(BaseLLMClient):
         
         except APIConnectionError as error:
             raise LLMConnectionError("Could not connect to OpenAI.") from error
+        
+        except AuthenticationError as error:
+            raise LLMAuthenticationError("OpenAI authentication failed. Check the API key.") from error

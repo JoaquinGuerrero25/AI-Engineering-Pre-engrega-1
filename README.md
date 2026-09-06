@@ -14,11 +14,13 @@ El proyecto implementa una arquitectura que permite utilizar **OpenAI** y **Anth
 * ✅ Operaciones completamente asíncronas.
 * ✅ Streaming de respuestas mediante `AsyncIterator`.
 * ✅ Validación de mensajes y configuración mediante Pydantic.
+* ✅ Configuración mediante variables de entorno.
+* ✅ Manejo controlado de errores de autenticación.
 * ✅ Manejo controlado de errores de conexión.
 * ✅ Manejo de errores de rate limit y quota.
 * ✅ Selección de proveedor mediante un manager.
 * ✅ Tests automatizados con `pytest` y `pytest-asyncio`.
-* ✅ Compatible con Python 3.12.
+* ✅ Compatible con Python 3.12+.
 
 ---
 
@@ -28,13 +30,13 @@ El proyecto utiliza una abstracción común para desacoplar la aplicación de lo
 
 ```text
                     ┌─────────────────────┐
-                    │   AsyncLLMManager    │
+                    │   AsyncLLMManager   │
                     └──────────┬──────────┘
                                │
                     ┌──────────▼──────────┐
                     │   BaseLLMClient     │
-                    │     (Interface)     │
-                    └───────┬───────┬─────┘
+                    │     (Interface)      │
+                    └───────┬───────┬──────┘
                             │       │
                  ┌──────────▼──┐ ┌──▼─────────────┐
                  │ OpenAIClient │ │ AnthropicClient│
@@ -49,6 +51,7 @@ La aplicación trabaja contra `BaseLLMClient`, por lo que la lógica de alto niv
 
 ```text
 unified-async-llm-client/
+
 │
 ├── app/
 │   ├── __init__.py
@@ -101,6 +104,7 @@ unified-async-llm-client/
 
 ```bash
 git clone <URL_DEL_REPOSITORIO>
+
 cd unified-async-llm-client
 ```
 
@@ -140,21 +144,31 @@ Crear un archivo `.env` en la raíz del proyecto.
 Se puede utilizar `.env.example` como referencia:
 
 ```env
+LLM_PROVIDER=openai
+
 OPENAI_API_KEY=your-openai-api-key
 ANTHROPIC_API_KEY=your-anthropic-api-key
 
 OPENAI_MODEL=gpt-4o-mini
 ANTHROPIC_MODEL=claude-3-5-sonnet-latest
+
+LLM_TEMPERATURE=0.7
+LLM_MAX_TOKENS=100
 ```
 
 ### Variables de entorno
 
-| Variable            | Descripción                    |
-| ------------------- | ------------------------------ |
-| `OPENAI_API_KEY`    | API key de OpenAI              |
-| `ANTHROPIC_API_KEY` | API key de Anthropic           |
-| `OPENAI_MODEL`      | Modelo utilizado por OpenAI    |
-| `ANTHROPIC_MODEL`   | Modelo utilizado por Anthropic |
+| Variable            | Descripción                                  |
+| ------------------- | -------------------------------------------- |
+| `LLM_PROVIDER`      | Proveedor utilizado (`openai` o `anthropic`) |
+| `OPENAI_API_KEY`    | API key de OpenAI                            |
+| `ANTHROPIC_API_KEY` | API key de Anthropic                         |
+| `OPENAI_MODEL`      | Modelo utilizado por OpenAI                  |
+| `ANTHROPIC_MODEL`   | Modelo utilizado por Anthropic               |
+| `LLM_TEMPERATURE`   | Temperatura utilizada para la generación     |
+| `LLM_MAX_TOKENS`    | Cantidad máxima de tokens de la respuesta    |
+
+La configuración se carga desde `.env` y posteriormente se valida mediante los modelos de Pydantic.
 
 > **Importante:** el archivo `.env` no debe subirse al repositorio. Se encuentra incluido en `.gitignore`.
 
@@ -192,6 +206,8 @@ response = await manager.generate(
 ```
 
 La implementación del manager se encarga de seleccionar el cliente correspondiente.
+
+El proveedor utilizado por el ejemplo principal se configura mediante `LLM_PROVIDER`.
 
 ---
 
@@ -275,7 +291,8 @@ La jerarquía utilizada es:
 ```text
 LLMClientError
 ├── LLMRateLimitError
-└── LLMConnectionError
+├── LLMConnectionError
+└── LLMAuthenticationError
 ```
 
 Por ejemplo:
@@ -291,11 +308,14 @@ try:
 except LLMRateLimitError as error:
     print(f"Rate limit / quota error: {error}")
 
+except LLMAuthenticationError as error:
+    print(f"Authentication error: {error}")
+
 except LLMConnectionError as error:
     print(f"Connection error: {error}")
 ```
 
-Esto evita que la aplicación dependa directamente de las excepciones internas de cada SDK.
+Esto evita que la aplicación dependa directamente de las excepciones internas de cada SDK y permite trabajar con una interfaz de errores común.
 
 ---
 
@@ -307,7 +327,7 @@ Para ejecutar el ejemplo principal:
 python main.py
 ```
 
-El programa realiza una llamada normal y una llamada mediante streaming.
+El programa realiza una llamada normal y una llamada mediante streaming utilizando el proveedor configurado en `LLM_PROVIDER`.
 
 También existe un ejemplo de streaming completamente local que no requiere API keys:
 
@@ -329,7 +349,7 @@ Para ejecutar todos los tests:
 pytest
 ```
 
-La suite actual cuenta con **15 tests automatizados**, cubriendo:
+La suite actual cuenta con **17 tests automatizados**, cubriendo:
 
 * Validación de mensajes.
 * Validación de configuración.
@@ -342,6 +362,7 @@ La suite actual cuenta con **15 tests automatizados**, cubriendo:
 * Streaming con Anthropic.
 * Manejo de rate limits.
 * Manejo de errores de conexión.
+* Manejo de errores de autenticación.
 
 Los tests utilizan mocks/fakes, por lo que no requieren realizar llamadas reales a las APIs.
 
@@ -377,5 +398,8 @@ Implementación funcional de:
 * Operaciones asíncronas.
 * Streaming.
 * Validación de datos.
+* Configuración mediante variables de entorno.
 * Manejo controlado de errores.
 * Tests automatizados.
+
+**Tests: 17/17 pasando.**

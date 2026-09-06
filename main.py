@@ -9,17 +9,21 @@ from app.exceptions import LLMRateLimitError, LLMConnectionError
 load_dotenv()
 
 async def main():
+    provider = os.getenv("LLM_PROVIDER")
+    if not provider:
+        raise ValueError("LLM_PROVIDER is not configured")
+    
     openai_api_key = os.getenv("OPENAI_API_KEY")
     anthropic_api_key = os.getenv("ANTHROPIC_API_KEY")
     
-    openai_model = os.getenv("OPENAI_MODEL")
-    anthropic_model = os.getenv("ANTHROPIC_MODEL")
-
     if not openai_api_key:
         raise ValueError("OPENAI_API_KEY is not set in the environment variables.")
     
     if not anthropic_api_key:
         raise ValueError("ANTHROPIC_API_KEY is not set in the environment variables.")
+    
+    openai_model = os.getenv("OPENAI_MODEL")
+    anthropic_model = os.getenv("ANTHROPIC_MODEL")
     
     if not openai_model:
         raise ValueError("OPENAI_MODEL is not set in the environment variables.")
@@ -36,7 +40,7 @@ async def main():
     
     print("\n--- RESPUESTA OPENAI ---")
     try:
-        response = await manager.generate(provider="openai", messages=messages, config=openai_config)
+        response = await manager.generate(provider=provider, messages=messages, config=openai_config)
         print(response.content)
     
     except LLMRateLimitError as error:

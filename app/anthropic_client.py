@@ -21,7 +21,7 @@ class AnthropicClient(BaseLLMClient):
         ]
         
         try: 
-            response = await self.client.chat.completions.create(
+            response = await self.client.messages.create(
                 model = config.model,
                 max_tokens = config.max_tokens,
                 temperature = config.temperature,
@@ -29,7 +29,7 @@ class AnthropicClient(BaseLLMClient):
                 messages = conversation_messages
             )
             
-            content = "".join(block.text for block in response.completion if block.type == "text")
+            content = "".join(block.text for block in response.content if block.type == "text")
             
             return ModelResponse(content = content, model = response.model, provider = "Anthropic")
         

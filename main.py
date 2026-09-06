@@ -8,39 +8,65 @@ from app.exceptions import LLMRateLimitError, LLMConnectionError
 
 load_dotenv()
 
+def get_required_env(name: str) -> str:
+    value = os.getenv(name)
+
+    if not value:
+        raise ValueError(
+            f"{name} is not configured in the environment variables."
+        )
+
+    return value
+
+def get_float_env(name: str, default: float) -> float:
+    value = os.getenv(name, str(default))
+
+    try:
+        return float(value)
+    except ValueError as error:
+        raise ValueError(
+            f"{name} must be a valid number."
+        ) from error
+
+def get_int_env(name: str, default: int) -> int:
+    value = os.getenv(name, str(default))
+
+    try:
+        return int(value)
+    except ValueError as error:
+        raise ValueError(
+            f"{name} must be a valid integer."
+        ) from error
+
 async def main():
-    provider = os.getenv("LLM_PROVIDER")
-    if not provider:
-        raise ValueError("LLM_PROVIDER is not configured")
+    provider = get_required_env("LLM_PROVIDER").lower()
+
+    openai_api_key = get_required_env("OPENAI_API_KEY")
+    anthropic_api_key = get_required_env("ANTHROPIC_API_KEY")
+
+    openai_model = get_required_env("OPENAI_MODEL")
+    anthropic_model = get_required_env("ANTHROPIC_MODEL")
+
+    temperature = get_float_env("LLM_TEMPERATURE", 0.7)
+    max_tokens = get_int_env("LLM_MAX_TOKENS", 100)
     
-    openai_api_key = os.getenv("OPENAI_API_KEY")
-    anthropic_api_key = os.getenv("ANTHROPIC_API_KEY")
-    
-    if not openai_api_key:
-        raise ValueError("OPENAI_API_KEY is not set in the environment variables.")
-    
-    if not anthropic_api_key:
-        raise ValueError("ANTHROPIC_API_KEY is not set in the environment variables.")
-    
-    openai_model = os.getenv("OPENAI_MODEL")
-    anthropic_model = os.getenv("ANTHROPIC_MODEL")
-    
-    if not openai_model:
-        raise ValueError("OPENAI_MODEL is not set in the environment variables.")
-    
-    if not anthropic_model:
-        raise ValueError("ANTHROPIC_MODEL is not set in the environment variables.")
+    if provider == "openai":
+        model = openai_model
+    elif provider == "anthropic":
+        model = anthropic_model
+    else:
+        raise ValueError(f"Unsupported provider: {provider}")
     
     manager = AsyncLLMManager(openai_api_key=openai_api_key, anthropic_api_key=anthropic_api_key)
     
     messages = [ChatMessage(role="user", content="¿Qué es la entropía? Explícalo de forma sencilla.")]
     
-    openai_config = ModelConfig(model=openai_model, max_tokens=100, temperature=0.7)
-    anthropic_config = ModelConfig(model=anthropic_model, max_tokens=100, temperature=0.7)
+    config = ModelConfig(model=model, temperature=temperature, max_tokens=max_tokens)
     
-    print("\n--- RESPUESTA OPENAI ---")
+    print(f"\n--- RESPUESTA {provider.upper()} ---")
+    
     try:
-        response = await manager.generate(provider=provider, messages=messages, config=openai_config)
+        response = await manager.generate(provider=provider, messages=messages, config=config)
         print(response.content)
     
     except LLMRateLimitError as error:
@@ -52,10 +78,10 @@ async def main():
     except LLMConnectionError as error:
         print(f"\nConnection error: {error}")
         
-    print("\n--- STREAMING OPENAI ---")
+    print(f"\n--- STREAMING {provider.upper()} ---")
 
     try:
-        async for chunk in manager.stream(provider=provider, messages=messages, config=openai_config):
+        async for chunk in manager.stream(provider=provider, messages=messages, config=config):
             print(chunk, end="", flush=True)
 
         print()
@@ -65,6 +91,9 @@ async def main():
 
     except LLMConnectionError as error:
         print(f"\nConnection error: {error}")
+        
+    except LLMAuthenticationError as error:
+        print(f"\nAuthentication error: {error}")
         
 if __name__ == "__main__":
     asyncio.run(main())

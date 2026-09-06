@@ -4,6 +4,7 @@ import os
 from dotenv import load_dotenv
 from app.manager import AsyncLLMManager
 from app.schemas import ChatMessage, ModelConfig
+from app.exceptions import LLMRateLimitError, LLMConnectionError
 
 load_dotenv()
 
@@ -33,10 +34,17 @@ async def main():
     openai_config = ModelConfig(model=openai_model, max_tokens=100, temperature=0.7)
     anthropic_config = ModelConfig(model=anthropic_model, max_tokens=100, temperature=0.7)
     
-    response = await manager.generate(provider="openai", messages=messages, config=openai_config)
+    try:
+        response = await manager.generate(provider="openai", messages=messages, config=openai_config)
+        
+        print("\n--- RESPUESTA OPENAI ---")
+        print(response.content)
     
-    print("\n--- RESPUESTA OPENAI ---")
-    print(response.content)
+    except LLMRateLimitError as error:
+        print(f"\nRate limit / quota error: {error}")
 
+    except LLMConnectionError as error:
+        print(f"\nConnection error: {error}")
+        
 if __name__ == "__main__":
     asyncio.run(main())

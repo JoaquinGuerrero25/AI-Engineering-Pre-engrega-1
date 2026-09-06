@@ -42,11 +42,11 @@ async def main():
     provider = get_required_env("LLM_PROVIDER").lower()
 
     if provider == "openai":
-        openai_api_key = get_required_env("OPENAI_API_KEY")
+        api_key = get_required_env("OPENAI_API_KEY")
         model = get_required_env("OPENAI_MODEL")
 
     elif provider == "anthropic":
-        anthropic_api_key = get_required_env("ANTHROPIC_API_KEY")
+        api_key = get_required_env("ANTHROPIC_API_KEY")
         model = get_required_env("ANTHROPIC_MODEL")
 
     else:
@@ -55,7 +55,7 @@ async def main():
     temperature = get_float_env("LLM_TEMPERATURE", 0.7)
     max_tokens = get_int_env("LLM_MAX_TOKENS", 100)
     
-    manager = AsyncLLMManager(openai_api_key=openai_api_key, anthropic_api_key=anthropic_api_key)
+    manager = AsyncLLMManager(provider=provider, api_key=api_key)
     
     messages = [ChatMessage(role="user", content="¿Qué es la entropía? Explícalo de forma sencilla.")]
     
@@ -64,7 +64,7 @@ async def main():
     print(f"\n--- RESPUESTA {provider.upper()} ---")
     
     try:
-        response = await manager.generate(provider=provider, messages=messages, config=config)
+        response = await manager.generate(messages=messages, config=config)
         print(response.content)
     
     except LLMRateLimitError as error:
@@ -79,7 +79,7 @@ async def main():
     print(f"\n--- STREAMING {provider.upper()} ---")
 
     try:
-        async for chunk in manager.stream(provider=provider, messages=messages, config=config):
+        async for chunk in manager.stream(messages=messages, config=config):
             print(chunk, end="", flush=True)
 
         print()

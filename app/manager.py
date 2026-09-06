@@ -5,11 +5,17 @@ from .openai_client import OpenAIClient
 from .schemas import ChatMessage, ModelConfig, ModelResponse
 
 class AsyncLLMManager:
-    def __init__(self, openai_api_key: str, anthropic_api_key: str):
-        self.clients: dict[str, BaseLLMClient] = {
-            "openai": OpenAIClient(api_key=openai_api_key),
-            "anthropic": AnthropicClient(api_key=anthropic_api_key)
-        }
+    def __init__(self, provider: str, api_key:str):
+        self.provider = provider.lower()
+
+        if self.provider == "openai":
+            self.client: BaseLLMClient = OpenAIClient(api_key)
+
+        elif self.provider == "anthropic":
+            self.client = AnthropicClient(api_key)
+        
+        else:
+            raise ValueError(f"Unsupported provider: {provider}")
         
     def _get_client(self, provider: str) -> BaseLLMClient:
         client = self.clients.get(provider.lower())
@@ -19,13 +25,9 @@ class AsyncLLMManager:
         
         return client
     
-    async def generate(self, provider: str, messages: list[ChatMessage], config: ModelConfig) -> ModelResponse:
-        client = self._get_client(provider.lower())
-
-        return await client.generate(messages=messages, config=config)
+    async def generate(self, messages: list[ChatMessage], config: ModelConfig) -> ModelResponse:
+        return await self.client.generate(messages=messages, config=config)
     
-    async def stream(self, provider: str, messages: list[ChatMessage], config: ModelConfig) -> AsyncIterator[str]:
-        client = self._get_client(provider.lower())
-
-        async for chunk in client.stream(messages=messages, config=config):
+    async def stream(self, messages: list[ChatMessage], config: ModelConfig) -> AsyncIterator[str]:
+        async for chunk in self.client.stream(messages=messages, config=config):
             yield chunk

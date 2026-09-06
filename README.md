@@ -15,10 +15,10 @@ El proyecto implementa una arquitectura que permite utilizar **OpenAI** y **Anth
 * ✅ Streaming de respuestas mediante `AsyncIterator`.
 * ✅ Validación de mensajes y configuración mediante Pydantic.
 * ✅ Configuración mediante variables de entorno.
+* ✅ Selección del proveedor mediante `AsyncLLMManager`.
 * ✅ Manejo controlado de errores de autenticación.
 * ✅ Manejo controlado de errores de conexión.
 * ✅ Manejo de errores de rate limit y quota.
-* ✅ Selección de proveedor mediante un manager.
 * ✅ Tests automatizados con `pytest` y `pytest-asyncio`.
 * ✅ Compatible con Python 3.12+.
 
@@ -29,21 +29,22 @@ El proyecto implementa una arquitectura que permite utilizar **OpenAI** y **Anth
 El proyecto utiliza una abstracción común para desacoplar la aplicación de los proveedores concretos.
 
 ```text
-                    ┌─────────────────────┐
-                    │   AsyncLLMManager   │
-                    └──────────┬──────────┘
-                               │
-                    ┌──────────▼──────────┐
-                    │   BaseLLMClient     │
-                    │     (Interface)      │
-                    └───────┬───────┬──────┘
-                            │       │
-                 ┌──────────▼──┐ ┌──▼─────────────┐
-                 │ OpenAIClient │ │ AnthropicClient│
-                 └─────────────┘ └────────────────┘
+                    AsyncLLMManager
+                           │
+                           ▼
+                    BaseLLMClient
+                    (Interface)
+                           │
+                  ┌────────┴────────┐
+                  │                 │
+           OpenAIClient       AnthropicClient
 ```
 
-La aplicación trabaja contra `BaseLLMClient`, por lo que la lógica de alto nivel no necesita conocer los detalles específicos de cada proveedor.
+El `AsyncLLMManager` recibe el proveedor y la API key correspondiente y se encarga de crear el cliente adecuado.
+
+Los clientes concretos implementan la interfaz `BaseLLMClient`, proporcionando las operaciones de generación de respuestas y streaming.
+
+La aplicación trabaja contra la interfaz común, por lo que la implementación utilizada puede cambiarse mediante configuración sin modificar la lógica principal.
 
 ---
 
@@ -84,7 +85,7 @@ unified-async-llm-client/
 | `base.py`             | Interfaz abstracta común para los proveedores              |
 | `openai_client.py`    | Implementación asíncrona para OpenAI                       |
 | `anthropic_client.py` | Implementación asíncrona para Anthropic                    |
-| `manager.py`          | Selección y utilización del proveedor                      |
+| `manager.py`          | Selección y creación del cliente según el proveedor        |
 | `main.py`             | Ejemplo de utilización del cliente                         |
 | `test_stream.py`      | Ejemplo de streaming local sin utilizar una API real       |
 | `tests/`              | Tests automatizados                                        |
@@ -94,7 +95,9 @@ unified-async-llm-client/
 ## Requisitos
 
 * Python 3.12+
-* Una API key de OpenAI y/o Anthropic.
+* Una API key del proveedor que se quiera utilizar: OpenAI o Anthropic.
+
+No es necesario configurar ambos proveedores. El proyecto utiliza únicamente la configuración correspondiente al proveedor seleccionado mediante `LLM_PROVIDER`.
 
 ---
 
@@ -156,6 +159,32 @@ LLM_TEMPERATURE=0.7
 LLM_MAX_TOKENS=100
 ```
 
+Aunque `.env.example` muestra ambas configuraciones como referencia, **solo es obligatorio configurar la correspondiente al proveedor seleccionado**.
+
+Por ejemplo, para OpenAI:
+
+```env
+LLM_PROVIDER=openai
+
+OPENAI_API_KEY=your-openai-api-key
+OPENAI_MODEL=gpt-4o-mini
+
+LLM_TEMPERATURE=0.7
+LLM_MAX_TOKENS=100
+```
+
+Para Anthropic:
+
+```env
+LLM_PROVIDER=anthropic
+
+ANTHROPIC_API_KEY=your-anthropic-api-key
+ANTHROPIC_MODEL=claude-3-5-sonnet-latest
+
+LLM_TEMPERATURE=0.7
+LLM_MAX_TOKENS=100
+```
+
 ### Variables de entorno
 
 | Variable            | Descripción                                  |
@@ -168,7 +197,9 @@ LLM_MAX_TOKENS=100
 | `LLM_TEMPERATURE`   | Temperatura utilizada para la generación     |
 | `LLM_MAX_TOKENS`    | Cantidad máxima de tokens de la respuesta    |
 
-La configuración se carga desde `.env` y posteriormente se valida mediante los modelos de Pydantic.
+La configuración se carga desde `.env`.
+
+Los valores de `temperature`, `max_tokens` y el resto de los datos enviados al cliente son posteriormente validados mediante los modelos de Pydantic.
 
 > **Importante:** el archivo `.env` no debe subirse al repositorio. Se encuentra incluido en `.gitignore`.
 
@@ -176,38 +207,57 @@ La configuración se carga desde `.env` y posteriormente se valida mediante los 
 
 ## Uso
 
-El proyecto proporciona un `AsyncLLMManager` que permite seleccionar el proveedor:
+El proyecto proporciona un `AsyncLLMManager` que selecciona el cliente correspondiente según el proveedor configurado.
+
+Ejemplo:
 
 ```python
 manager = AsyncLLMManager(
-    openai_api_key=openai_api_key,
-    anthropic_api_key=anthropic_api_key,
+    provider=provider,
+    api_key=api_key,
 )
 ```
 
-Luego se puede generar una respuesta indicando el proveedor:
+Una vez creado el manager, no es necesario indicar el proveedor en cada operación.
+
+### Generación de respuestas
 
 ```python
 response = await manager.generate(
-    provider="openai",
     messages=messages,
     config=config,
 )
+
+print(response.content)
 ```
 
-También se puede utilizar Anthropic:
+El manager delega la operación al cliente correspondiente.
 
-```python
-response = await manager.generate(
-    provider="anthropic",
-    messages=messages,
-    config=config,
-)
+Por ejemplo:
+
+```text
+LLM_PROVIDER=openai
+        │
+        ▼
+AsyncLLMManager
+        │
+        ▼
+OpenAIClient
 ```
 
-La implementación del manager se encarga de seleccionar el cliente correspondiente.
+O:
 
-El proveedor utilizado por el ejemplo principal se configura mediante `LLM_PROVIDER`.
+```text
+LLM_PROVIDER=anthropic
+        │
+        ▼
+AsyncLLMManager
+        │
+        ▼
+AnthropicClient
+```
+
+Esto permite cambiar de proveedor mediante configuración sin modificar la lógica principal.
 
 ---
 
@@ -219,7 +269,6 @@ Ejemplo:
 
 ```python
 async for chunk in manager.stream(
-    provider="openai",
     messages=messages,
     config=config,
 ):
@@ -228,16 +277,9 @@ async for chunk in manager.stream(
 
 Esto permite procesar la respuesta a medida que el proveedor genera contenido, en lugar de esperar a que la respuesta completa esté disponible.
 
-El mismo mecanismo está disponible para Anthropic:
+El mismo mecanismo funciona independientemente del proveedor seleccionado.
 
-```python
-async for chunk in manager.stream(
-    provider="anthropic",
-    messages=messages,
-    config=config,
-):
-    print(chunk, end="", flush=True)
-```
+La implementación concreta del streaming queda encapsulada dentro de `OpenAIClient` o `AnthropicClient`.
 
 ---
 
@@ -245,7 +287,7 @@ async for chunk in manager.stream(
 
 Los mensajes y la configuración del modelo son validados antes de enviarse al proveedor.
 
-Ejemplo:
+### Mensajes
 
 ```python
 message = ChatMessage(
@@ -262,7 +304,9 @@ user
 assistant
 ```
 
-La configuración del modelo también posee validaciones:
+El contenido del mensaje no puede estar vacío.
+
+### Configuración del modelo
 
 ```python
 config = ModelConfig(
@@ -280,6 +324,8 @@ La temperatura está limitada al rango:
 
 y `max_tokens` debe ser mayor que cero.
 
+Si los datos no cumplen las restricciones definidas, Pydantic genera un error de validación.
+
 ---
 
 ## Manejo de errores
@@ -295,12 +341,13 @@ LLMClientError
 └── LLMAuthenticationError
 ```
 
-Por ejemplo:
+Esto permite que la aplicación trabaje con una interfaz de errores común independientemente del proveedor utilizado.
+
+Ejemplo:
 
 ```python
 try:
     response = await manager.generate(
-        provider="openai",
         messages=messages,
         config=config,
     )
@@ -315,7 +362,7 @@ except LLMConnectionError as error:
     print(f"Connection error: {error}")
 ```
 
-Esto evita que la aplicación dependa directamente de las excepciones internas de cada SDK y permite trabajar con una interfaz de errores común.
+Los errores específicos de los SDK de OpenAI y Anthropic son capturados por los clientes y transformados en las excepciones propias de la aplicación.
 
 ---
 
@@ -327,7 +374,25 @@ Para ejecutar el ejemplo principal:
 python main.py
 ```
 
-El programa realiza una llamada normal y una llamada mediante streaming utilizando el proveedor configurado en `LLM_PROVIDER`.
+El programa realiza:
+
+1. Carga de configuración desde `.env`.
+2. Selección del proveedor.
+3. Creación del `AsyncLLMManager`.
+4. Generación de una respuesta normal.
+5. Generación de una respuesta mediante streaming.
+
+El proveedor utilizado se determina mediante:
+
+```env
+LLM_PROVIDER=openai
+```
+
+o:
+
+```env
+LLM_PROVIDER=anthropic
+```
 
 También existe un ejemplo de streaming completamente local que no requiere API keys:
 
@@ -366,6 +431,8 @@ La suite actual cuenta con **17 tests automatizados**, cubriendo:
 
 Los tests utilizan mocks/fakes, por lo que no requieren realizar llamadas reales a las APIs.
 
+**Resultado actual: 17/17 tests pasando.**
+
 ---
 
 ## Tecnologías utilizadas
@@ -384,7 +451,7 @@ Los tests utilizan mocks/fakes, por lo que no requieren realizar llamadas reales
 
 El objetivo es construir un cliente LLM desacoplado del proveedor, permitiendo que la aplicación pueda trabajar con diferentes servicios de inteligencia artificial utilizando una interfaz común.
 
-La arquitectura facilita incorporar nuevos proveedores en el futuro sin modificar la lógica principal de la aplicación.
+La arquitectura permite cambiar entre proveedores mediante configuración y facilita incorporar nuevos proveedores en el futuro sin modificar la lógica principal de la aplicación.
 
 ---
 

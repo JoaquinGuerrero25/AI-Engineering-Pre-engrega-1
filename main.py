@@ -41,21 +41,19 @@ def get_int_env(name: str, default: int) -> int:
 async def main():
     provider = get_required_env("LLM_PROVIDER").lower()
 
-    openai_api_key = get_required_env("OPENAI_API_KEY")
-    anthropic_api_key = get_required_env("ANTHROPIC_API_KEY")
+    if provider == "openai":
+        openai_api_key = get_required_env("OPENAI_API_KEY")
+        model = get_required_env("OPENAI_MODEL")
 
-    openai_model = get_required_env("OPENAI_MODEL")
-    anthropic_model = get_required_env("ANTHROPIC_MODEL")
+    elif provider == "anthropic":
+        anthropic_api_key = get_required_env("ANTHROPIC_API_KEY")
+        model = get_required_env("ANTHROPIC_MODEL")
+
+    else:
+        raise ValueError(f"Unsupported provider: {provider}")
 
     temperature = get_float_env("LLM_TEMPERATURE", 0.7)
     max_tokens = get_int_env("LLM_MAX_TOKENS", 100)
-    
-    if provider == "openai":
-        model = openai_model
-    elif provider == "anthropic":
-        model = anthropic_model
-    else:
-        raise ValueError(f"Unsupported provider: {provider}")
     
     manager = AsyncLLMManager(openai_api_key=openai_api_key, anthropic_api_key=anthropic_api_key)
     

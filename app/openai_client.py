@@ -31,16 +31,23 @@ class OpenAIClient(BaseLLMClient):
             raise LLMConnectionError("Could not connect to OpenAI.") from error
     
     async def stream(self, messages: list[ChatMessage], config: ModelConfig) -> AsyncIterator[str]:
-        response = await self.client.chat.completions.create(
-            model = config.model,
-            messages = [{"role": message.role, "content": message.content} for message in messages],
-            temperature = config.temperature,
-            max_tokens = config.max_tokens,
-            stream = True
-        )
-        
-        async for chunk in response:
-            content = chunk.choices[0].delta.get
+        try:
+            response = await self.client.chat.completions.create(
+                model = config.model,
+                messages = [{"role": message.role, "content": message.content} for message in messages],
+                temperature = config.temperature,
+                max_tokens = config.max_tokens,
+                stream = True
+            )
             
-            if content:
-                yield content
+            async for chunk in response:
+                content = chunk.choices[0].delta.get
+                
+                if content:
+                    yield content
+        
+        except RateLimitError as error:
+            raise LLMRateLimitError("OpenAI rate limit or quota exceeded.") from error
+        
+        except APIConnectionError as error:
+            raise LLMConnectionError("Could not connect to OpenAI.") from error

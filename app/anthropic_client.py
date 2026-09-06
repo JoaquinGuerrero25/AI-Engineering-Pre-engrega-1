@@ -47,15 +47,22 @@ class AnthropicClient(BaseLLMClient):
             for message in messages if message.role != "system"
         ]
         
-        async with self.client.messages.stream(
-            model = config.model,
-            max_tokens = config.max_tokens,
-            temperature = config.temperature,
-            system="\n".join(system_message) if system_message else None,
-            messages = conversation_messages
-        ) as stream:
-            async for text in stream.text_stream:
-                yield text
+        try:
+            async with self.client.messages.stream(
+                model = config.model,
+                max_tokens = config.max_tokens,
+                temperature = config.temperature,
+                system="\n".join(system_message) if system_message else None,
+                messages = conversation_messages
+            ) as stream:
+                async for text in stream.text_stream:
+                    yield text
+                    
+        except RateLimitError as error:
+            raise LLMRateLimitError("Anthropic rate limit or quota exceeded.") from error
+        
+        except APIConnectionError as error:
+            raise LLMConnectionError("Could not connect to Anthropic.") from error
         
         
         
